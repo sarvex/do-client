@@ -48,8 +48,11 @@ class ArgParserBase(object):
     def __init__(self):
         self.parser = argparse.ArgumentParser(description='Builds the DeliveryOptimization client components')
         self.parser.add_argument(
-            '--project', dest='project', type=str, required=True,
-            help='The cmake subproject to build. e.g. {}'.format(list(DOCLIENT_SUBPROJECT_BUILD_MAP.keys()))
+            '--project',
+            dest='project',
+            type=str,
+            required=True,
+            help=f'The cmake subproject to build. e.g. {list(DOCLIENT_SUBPROJECT_BUILD_MAP.keys())}',
         )
         self.parser.add_argument(
             '--operation', dest='operation', type=str,
@@ -163,7 +166,9 @@ class BuildRunnerBase(object):
         if (script_args.project and script_args.project.lower() in DOCLIENT_SUBPROJECT_BUILD_MAP.keys()):
             self.project = script_args.project.lower()
         else:
-            raise ValueError('Project name must be within {}'.format(list(DOCLIENT_SUBPROJECT_BUILD_MAP.keys())))
+            raise ValueError(
+                f'Project name must be within {list(DOCLIENT_SUBPROJECT_BUILD_MAP.keys())}'
+            )
         self.script_args = script_args
         self.is_clean_build = self.script_args.clean
 
@@ -206,7 +211,7 @@ class BuildRunnerBase(object):
             The unique flavor string for this build.
             e.g. linux-debug
         """
-        return '{}-{}'.format(self.platform, self.config)
+        return f'{self.platform}-{self.config}'
 
     @property
     def generator(self):
@@ -241,29 +246,30 @@ class BuildRunnerBase(object):
         return get_build_path(self.project, self.build_directory, self.flavor)
 
     def run(self):
-        if self.cmake_target != None:
-            """Executes the Build."""
-            self.print_start_build_msg()
+        if self.cmake_target is None:
+            return
+        """Executes the Build."""
+        self.print_start_build_msg()
 
-            if self.is_clean_build:
-                self.clean()
+        if self.is_clean_build:
+            self.clean()
 
-            if self.operation_type:
-                if self.operation_type.lower() == "generate":
-                    self.generate()
-                elif self.operation_type.lower() == "build":
-                    self.build()
-                elif self.operation_type.lower() == "cleanonly":
-                    if not self.is_clean_build:
-                        self.clean()
-                else:
-                    raise ValueError('Invalid operation specified: {}'.format(self.operation_type))
-            else:
+        if self.operation_type:
+            if self.operation_type.lower() == "generate":
                 self.generate()
+            elif self.operation_type.lower() == "build":
                 self.build()
+            elif self.operation_type.lower() == "cleanonly":
+                if not self.is_clean_build:
+                    self.clean()
+            else:
+                raise ValueError(f'Invalid operation specified: {self.operation_type}')
+        else:
+            self.generate()
+            self.build()
 
-            self.print_end_build_msg()
-            self.print_times()
+        self.print_end_build_msg()
+        self.print_times()
 
     def print_start_build_msg(self):
         """Prints a message at the start of Build.run.
@@ -273,30 +279,30 @@ class BuildRunnerBase(object):
         super().print_start_build_msg before adding their own
         print statements.
         """
-        print('Starting Build for project: {}'.format(self.project))
-        print('Target OS: {}'.format(self.platform.capitalize()))
-        print('Flavor: {}'.format(self.flavor))
-        print('Config: {}'.format(self.config))
-        print('Subproject: {}'.format(self.project))
-        print('CMake Target: {}'.format(self.cmake_target))
-        print('CMake Generator: {}'.format(self.generator))
-        print('Clean: {}'.format(self.is_clean_build))
-        print('Source Path: {}'.format(self.source_path))
-        print('Build Path: {}'.format(self.build_path))
+        print(f'Starting Build for project: {self.project}')
+        print(f'Target OS: {self.platform.capitalize()}')
+        print(f'Flavor: {self.flavor}')
+        print(f'Config: {self.config}')
+        print(f'Subproject: {self.project}')
+        print(f'CMake Target: {self.cmake_target}')
+        print(f'CMake Generator: {self.generator}')
+        print(f'Clean: {self.is_clean_build}')
+        print(f'Source Path: {self.source_path}')
+        print(f'Build Path: {self.build_path}')
 
     def print_end_build_msg(self):
         """Prints a message at the end of Build.run."""
         print('Build Complete')
 
     def print_times(self):
-        print('Time to clean: {}'.format(self.timeToClean))
-        print('Time to generate: {}'.format(self.timeToGenerate))
-        print('Time to build: {}'.format(self.timeToBuild))
+        print(f'Time to clean: {self.timeToClean}')
+        print(f'Time to generate: {self.timeToGenerate}')
+        print(f'Time to build: {self.timeToBuild}')
 
     def clean(self):
         """Deletes the output directory(s) for this Build."""
         build_path = self.build_path
-        print('Purging: {}'.format(build_path))
+        print(f'Purging: {build_path}')
         start_time = timeit.default_timer()
         if os.path.exists(build_path):
             shutil.rmtree(build_path)
@@ -342,28 +348,24 @@ class BuildRunnerBase(object):
         Returns:
             The list of additional generate options.
         """
-        generate_options = []
-
         if self.generator is None:
             raise argparse.ArgumentError('The generator was not specified. Please check the defaults in the derived build runners.')
 
-        generate_options.extend(['-G', self.generator])
-
+        generate_options = ['-G', self.generator]
         if self.config == "debug":
             generate_options.extend(["-DCMAKE_BUILD_TYPE=Debug"])
         elif self.config == "devdebug":
-            generate_options.extend(["-DCMAKE_BUILD_TYPE=Debug"])
-            generate_options.extend(["-DDO_DEV_DEBUG=1"])
-        elif self.config == "relwithdebinfo":
-            generate_options.extend(["-DCMAKE_BUILD_TYPE=RelWithDebInfo"])
+            generate_options.extend(["-DCMAKE_BUILD_TYPE=Debug", "-DDO_DEV_DEBUG=1"])
         elif self.config == "minsizerel":
             generate_options.extend(["-DCMAKE_BUILD_TYPE=MinSizeRel"])
+        elif self.config == "relwithdebinfo":
+            generate_options.extend(["-DCMAKE_BUILD_TYPE=RelWithDebInfo"])
         else:
             generate_options.extend(["-DCMAKE_BUILD_TYPE=Release"])
 
         # All pipelines perform a clean build so timestamp will get refreshed
         # even though we can pass this only to the generate phase.
-        generate_options.extend(['-DDO_BUILD_TIMESTAMP={}'.format(self.build_time)])
+        generate_options.extend([f'-DDO_BUILD_TIMESTAMP={self.build_time}'])
 
         if self.skip_tests:
             generate_options.extend(["-DDO_BUILD_TESTS=OFF"])
@@ -376,7 +378,7 @@ class BuildRunnerBase(object):
     def build(self):
         """Executes the build phase of the build."""
         build_command = self.create_build_command()
-        print('Executing: {}'.format(' '.join(build_command)))
+        print(f"Executing: {' '.join(build_command)}")
         start_time = timeit.default_timer()
         run_command(build_command)
         self.timeToBuild = timeit.default_timer() - start_time
@@ -407,7 +409,7 @@ class BuildRunnerBase(object):
         return ["--target", self.cmake_target]
 
     def package(self):
-        subprocess.call(['/bin/bash', '-c', 'cd {} && cpack .'.format(self.build_path)])
+        subprocess.call(['/bin/bash', '-c', f'cd {self.build_path} && cpack .'])
 
 class LinuxBuildRunner(BuildRunnerBase):
     """Linux BuildRunner class."""
@@ -441,7 +443,7 @@ class LinuxBuildRunner(BuildRunnerBase):
             elif self.package_type == "rpm":
                 generate_options.extend(["-DDO_PACKAGE_TYPE=RPM"])
             else:
-                raise ValueError('{} is not a supported package_type'.format(self.package_type))
+                raise ValueError(f'{self.package_type} is not a supported package_type')
 
         if self.static_analysis:
             generate_options.extend(["-DCMAKE_CXX_CPPLINT=cpplint"])
@@ -450,7 +452,7 @@ class LinuxBuildRunner(BuildRunnerBase):
             generate_options.extend(["-DDO_BUILD_FOR_SNAP=1"])
 
         if self.search_prefix:
-            generate_options.extend(["-DCMAKE_PREFIX_PATH={}".format(self.search_prefix)])
+            generate_options.extend([f"-DCMAKE_PREFIX_PATH={self.search_prefix}"])
 
         return generate_options
 
@@ -460,7 +462,7 @@ class LinuxBuildRunner(BuildRunnerBase):
             self.package()
 
     def package(self):
-        subprocess.call(['/bin/bash', '-c', 'cd {} && cpack .'.format(self.build_path)])
+        subprocess.call(['/bin/bash', '-c', f'cd {self.build_path} && cpack .'])
 
 class WindowsBuildRunner(BuildRunnerBase):
     """Windows BuildRunner class."""
@@ -481,7 +483,11 @@ class WindowsBuildRunner(BuildRunnerBase):
         if self.arch.startswith('arm'):
             raise ValueError("Windows Arm Builds are not supported right now.")
 
-        self.vcpkg_root_path = self.project_root_path + "/vcpkg" if script_args.vcpkgdir is None else script_args.vcpkgdir
+        self.vcpkg_root_path = (
+            f"{self.project_root_path}/vcpkg"
+            if script_args.vcpkgdir is None
+            else script_args.vcpkgdir
+        )
 
     @property
     def platform(self):
@@ -500,9 +506,9 @@ class WindowsBuildRunner(BuildRunnerBase):
     @property
     def generate_options(self):
         return super().generate_options + [
-                '-DCMAKE_TOOLCHAIN_FILE={}'.format(get_vcpkg_toolchain_file_path(self.vcpkg_root_path)),
-                '-DVCPKG_TARGET_TRIPLET={}'.format(self._vcpkg_triplet)
-            ]
+            f'-DCMAKE_TOOLCHAIN_FILE={get_vcpkg_toolchain_file_path(self.vcpkg_root_path)}',
+            f'-DVCPKG_TARGET_TRIPLET={self._vcpkg_triplet}',
+        ]
 
     @property
     def build_options(self):
@@ -513,7 +519,7 @@ class WindowsBuildRunner(BuildRunnerBase):
         """The triplet string required by vcpkg."""
         # We don't use the 'static' vcpkg install yet.
         # Looks like vcpkg uses static libs by default.
-        return '{}-{}'.format(self.arch, self.platform)
+        return f'{self.arch}-{self.platform}'
 
 class MacBuildRunner(BuildRunnerBase):
     """OsX BuildRunner class."""
@@ -538,9 +544,9 @@ class MacBuildRunner(BuildRunnerBase):
     @property
     def generate_options(self):
         return super().generate_options + [
-                '-DCMAKE_TOOLCHAIN_FILE={}'.format(get_vcpkg_toolchain_file_path(self.vcpkg_root_path)),
-                '-DVCPKG_TARGET_TRIPLET={}'.format(self._vcpkg_triplet)
-            ]
+            f'-DCMAKE_TOOLCHAIN_FILE={get_vcpkg_toolchain_file_path(self.vcpkg_root_path)}',
+            f'-DVCPKG_TARGET_TRIPLET={self._vcpkg_triplet}',
+        ]
 
     @property
     def build_options(self):
@@ -551,7 +557,7 @@ class MacBuildRunner(BuildRunnerBase):
         """The triplet string required by vcpkg."""
         # We don't use the 'static' vcpkg install yet.
         # Looks like vcpkg uses static libs by default.
-        return '{}-{}'.format(self.arch, self.platform)
+        return f'{self.arch}-{self.platform}'
 
 #endregion BuildRunner Classes
 
@@ -631,7 +637,7 @@ def get_project_root_path():
         The root path to our git repo.
     """
     script_path = os.path.dirname(os.path.realpath(__file__))
-    print('script_path={}'.format(script_path))
+    print(f'script_path={script_path}')
     return os.path.abspath(os.path.join(script_path, '..'))
 
 def get_cmake_files_path(root_path=None):
@@ -674,10 +680,11 @@ def get_build_path(project, build_directory=None, flavor=None):
     Returns:
         The default bin path.
     """
-    if build_directory == None:
+    if build_directory is None:
         build_directory = tempfile.gettempdir()
-    build_path = os.path.join(build_directory, "build-deliveryoptimization-" + project, flavor)
-    return build_path
+    return os.path.join(
+        build_directory, f"build-deliveryoptimization-{project}", flavor
+    )
 
 def get_env_var(name):
     """Gets the environment variable value or None.
@@ -694,10 +701,7 @@ def get_env_var(name):
         The value of the environment variable with name.
         None if the environment variable is not set/present.
     """
-    if name.upper() in os.environ:
-        return os.environ[name.upper()]
-    else:
-        return None
+    return os.environ.get(name.upper(), None)
 
 def run_command(command):
     """Runs the given command.
@@ -711,10 +715,10 @@ def run_command(command):
     """
     command_string = ' '.join(command)
     try:
-        print('Running command {}.'.format(command_string))
+        print(f'Running command {command_string}.')
         _check_call(command)
     except subprocess.CalledProcessError:
-        print('Running {} failed. Rethrowing exception'.format(command_string))
+        print(f'Running {command_string} failed. Rethrowing exception')
         raise
 
 def _check_call(command):
